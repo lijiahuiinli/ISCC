@@ -117,6 +117,8 @@ for i in range(len(ct)):
 
   `hdb3` + `getBVStat` 在 `tmp == [0]*24` 的情况下两侧统计量都退化为 `(B=48, V=48, vparity=0)` 而完全一致；这是数学上最干净也最容易构造的解。也就是说 path2 的判定可以等价地化简为 `ct == MASK2 ^ TARGET_T`，记为 `E2`。
 
+  注意这里只是把 `tmp == 0` 当成一个充分条件来用，**并没有从代数上证明它是唯一通过 `hdb3` + `getBVStat` 校验的 `tmp` 值**：理论上仍可能存在某个非零 `tmp`，使得它的 `(B, V, vparity)` 三元组恰好和某个用户输入 `plain` 的统计量相等。本文选择的 `plain2` 不是靠"唯一解"这种代数论证撑起来的，而是依赖 wine 实跑得到 `PASS` 的端到端往返来验证：构造满足 `tmp == 0` 的输入交给二进制，得到 `PASS`，就足以确认它是一个被接受的解。
+
 注意两条路径里出现的 `ct` 都是用同一份 `encryptPart2` 算出来的，但作用对象是两次不同的用户输入。所以这道题实际上需要交两段 24 字符明文：第一段满足 path1，第二段满足 path2。两段相互独立。
 
 无论 path1 还是 path2 的判定最终是 `PASS` 还是 `FAIL`，程序都会回到循环顶端继续读下一行输入；只有在 path1 PASS 之后再 path2 也 PASS，标准输出上才会按顺序看到 `\nPASS\n`。
@@ -166,6 +168,8 @@ for r in range(0x5E, 0, -1):              # 94, 93, ..., 1
     idx = ebx % (r + 1)
     table[r], table[idx] = table[idx], table[r]
 ```
+
+注意两段循环里使用的是 **同一个** `ebx` 寄存器，并不是分别独立初始化的两套状态。前半段 key 预混循环走完之后，`ebx` 的最终值会直接作为后半段 swap LCG 的起点继续往下走；换句话说，种子游走的最后状态就是交换游走的初始状态。把这套例程移植到其他语言时，**不要** 在进入 swap 循环之前重新给 `ebx` 赋初值，否则生成出来的两张表会和二进制实跑的结果完全对不上。
 
 二进制里实际生成两张表：
 
@@ -492,10 +496,6 @@ def va_to_off(va: int) -> int:
 
 def is_printable_ascii(b: bytes) -> bool:
     return all(0x20 <= x <= 0x7E for x in b)
-
-
-def hex_dump(b: bytes) -> str:
-    return b.hex()
 
 
 def main() -> int:
